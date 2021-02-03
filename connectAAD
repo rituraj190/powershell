@@ -1,0 +1,46 @@
+function Invoke-ConnectAAD {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$true, ParameterSetName = "ApplicationSecret")]
+        [Parameter(Mandatory=$true, ParameterSetName = "Thumbprint")]    
+        [string] $ApplicationId,
+
+        [Parameter(Mandatory=$true, ParameterSetName = "ApplicationSecret")]  
+        [Parameter(Mandatory=$true, ParameterSetName = "Thumbprint")]  
+        [string] $tenantId,
+
+        [Parameter(Mandatory=$true, ParameterSetName = "ApplicationSecret")]  
+        [string] $ApplicationSecret,
+
+        [Parameter(Mandatory=$true, ParameterSetName = "Thumbprint")]  
+        [string] $Thumbprint
+    )
+
+    if($PSBoundParameters.ContainsKey('Thumbprint'))
+    {
+        Write-Verbose -Message $("Azure RM Connect using certificate...")
+        $AzureRmContext = Connect-AzAccount -ApplicationId $ApplicationId -TenantId $tenantId -CertificateThumbprint $Thumbprint
+        Write-Host -Object $("INFO: Connect into Azure Rm TenantID {0} by {1}" -f $AzureRmContext.TenantID, $AzureADContext.Account) 
+    }
+
+    if($PSBoundParameters.ContainsKey('ApplicationSecret'))
+    {
+        Write-Verbose -Message $("Azure Connect using app id & secret...")
+        $AppSecretSec = ConvertTo-SecureString -string $ApplicationSecret -AsPlainText -Force
+        $AppCredential = New-Object -typeName System.Management.Automation.PSCredential -argumentList $ApplicationId, $AppSecretSec
+        $AzureRmContext = Connect-AzAccount -Credential $AppCredential -ServicePrincipal -TenantId $TenantId
+        Write-Host -Object $("INFO: Connect into Azure TenantID {0} by {1}" -f $AzureRmContext.Context.Account.Tenants[0], $AzureRmContext.Context.Account.Id) 
+    }
+
+    #Connect to Azure Active Directory
+    Write-Verbose -Message $("Azure AD Connect using aad access token")
+    $encodeSecret = [System.Web.HttpUtility]::UrlEncode($ApplicationSecret)
+    $body = ("resource=https%3A%2F%2Fgraph.windows.net&client_id={0}&client_secret={1}&grant_type=client_credentials" -f $ApplicationId, $encodeSecret)
+    $resp = Invoke-WebRequest -UseBasicParsing -Uri "https://login.microsoftonline.com/$TenantId/oauth2/token" -Method POST -Body $body | ConvertFrom-Json
+    $AzureADContext = Connect-AzureAD -TenantId  $tenantId -AadAccessToken $resp.access_token -AccountId $AzureRmContext.Context.Account.Id -ErrorAction Stop
+    Write-Host -Object $("INFO: Connect into Azure AD TenantID {0} by {1}" -f $AzureADContext.TenantID, $AzureADContext.Account) 
+}
+
+Add-Type -AssemblyName System.Web
+
+Invoke-ConnectAAD -TenantID $TenantId -ApplicationId $ApplicationId -ApplicationSecret $ApplicationSecret

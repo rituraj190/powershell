@@ -1,0 +1,22 @@
+function Invoke-AzureModule {
+param (
+       [Parameter(Mandatory = $true)]       
+       [string]$ModuleName
+    )
+    $Get=Get-Module $ModuleName
+    if ($Get -eq 0) {
+        Write-Output ("Need to Install"+ $ModuleName+ " Modules")
+        Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser
+        $install=Install-Module -Name $ModuleName -AllowClobber -Scope CurrentUser
+        Import-Module -Name $ModuleName
+        Write-Output ("$ModuleName"+" Modules installed and Imported")
+    }
+else{
+Write-Host ($ModuleName + " Modules already installed going to Import")
+
+Import-Module -Name $ModuleName 
+Write-Output ($ModuleName + " Modules Imported successfully")
+
+}
+
+}
